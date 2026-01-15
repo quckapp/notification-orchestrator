@@ -8,7 +8,7 @@ config :notification_orchestrator, NotificationOrchestrator.Endpoint,
   pubsub_server: NotificationOrchestrator.PubSub
 
 config :notification_orchestrator, :mongodb,
-  url: System.get_env("MONGODB_URI") || "mongodb://localhost:27017/quckchat_notifications",
+  url: System.get_env("MONGODB_URI") || "mongodb://localhost:27017/quckapp_notifications",
   pool_size: 10
 
 config :notification_orchestrator, :redis,
@@ -21,7 +21,7 @@ config :notification_orchestrator, :kafka,
   consumer_group: "notification-orchestrator-group"
 
 config :notification_orchestrator, NotificationOrchestrator.Guardian,
-  issuer: "quckchat",
+  issuer: "quckapp",
   secret_key: System.get_env("JWT_SECRET") || "your-secret-key"
 
 config :notification_orchestrator, :firebase,
