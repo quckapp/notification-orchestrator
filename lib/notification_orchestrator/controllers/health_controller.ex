@@ -1,9 +1,29 @@
 defmodule NotificationOrchestrator.HealthController do
   use Phoenix.Controller, formats: [:json]
+  use OpenApiSpex.ControllerSpecs
+
+  alias NotificationOrchestrator.Schemas.Common
+
+  tags ["Health"]
+
+  operation :index,
+    summary: "Health check",
+    description: "Returns the health status of the notification orchestrator service",
+    responses: [
+      ok: {"Service is healthy", "application/json", Common.HealthResponse}
+    ]
 
   def index(conn, _params) do
     json(conn, %{status: "healthy", service: "notification-orchestrator", version: "1.0.0"})
   end
+
+  operation :ready,
+    summary: "Readiness check",
+    description: "Returns the readiness status of the service and its dependencies (MongoDB, Redis)",
+    responses: [
+      ok: {"Service is ready", "application/json", Common.ReadinessResponse},
+      service_unavailable: {"Service is not ready", "application/json", Common.ReadinessResponse}
+    ]
 
   def ready(conn, _params) do
     checks = %{mongo: check_mongo(), redis: check_redis()}

@@ -2,11 +2,20 @@ defmodule NotificationOrchestrator.Providers.Firebase do
   use GenServer
   require Logger
 
+  alias NotificationOrchestrator.CircuitBreaker
+
   @fcm_url "https://fcm.googleapis.com/v1/projects"
 
   def start_link(_opts), do: GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
 
-  def send(device_token, notification) do
+  @doc "Send notification (extracts device_token from notification map)"
+  def send_notification(notification) when is_map(notification) do
+    device_token = notification[:device_token] || notification["device_token"]
+    send_notification(device_token, notification)
+  end
+
+  @doc "Send notification to device token"
+  def send_notification(device_token, notification) do
     GenServer.cast(__MODULE__, {:send, device_token, notification})
   end
 
@@ -19,7 +28,7 @@ defmodule NotificationOrchestrator.Providers.Firebase do
   @impl true
   def handle_cast({:send, device_token, notification}, state) do
     state = ensure_access_token(state)
-    
+
     payload = %{
       message: %{
         token: device_token,
@@ -34,20 +43,27 @@ defmodule NotificationOrchestrator.Providers.Firebase do
     }
 
     url = "#{@fcm_url}/#{state.project_id}/messages:send"
-    
-    case Req.post(url,
-      json: payload,
-      headers: [{"Authorization", "Bearer #{state.access_token}"}]
-    ) do
-      {:ok, %{status: 200}} ->
-        :telemetry.execute([:notification, :firebase, :sent], %{count: 1}, %{})
-        Logger.debug("Firebase notification sent to #{device_token}")
-      {:ok, %{status: status, body: body}} ->
-        Logger.warning("Firebase notification failed: #{status} - #{inspect(body)}")
-        :telemetry.execute([:notification, :failed], %{count: 1}, %{provider: :firebase})
-      {:error, reason} ->
-        Logger.error("Firebase notification error: #{inspect(reason)}")
-    end
+
+    # Wrap FCM call with circuit breaker
+    CircuitBreaker.call(:firebase, fn ->
+      case Req.post(url,
+        json: payload,
+        headers: [{"Authorization", "Bearer #{state.access_token}"}]
+      ) do
+        {:ok, %{status: 200}} = result ->
+          :telemetry.execute([:notification, :firebase, :sent], %{count: 1}, %{})
+          Logger.debug("Firebase notification sent to #{device_token}")
+          result
+        {:ok, %{status: status, body: body}} = result ->
+          Logger.warning("Firebase notification failed: #{status} - #{inspect(body)}")
+          :telemetry.execute([:notification, :failed], %{count: 1}, %{provider: :firebase})
+          # Return error for circuit breaker to track
+          {:error, {:http_error, status}}
+        {:error, reason} = error ->
+          Logger.error("Firebase notification error: #{inspect(reason)}")
+          error
+      end
+    end, default: {:error, :circuit_open})
 
     {:noreply, state}
   end

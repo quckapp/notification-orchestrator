@@ -1,0 +1,199 @@
+version: '3.8'
+
+services:
+  # =============================================================================
+  # Notification Orchestrator Service
+  # =============================================================================
+  notification-orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notification-orchestrator
+    ports:
+      - "4004:4004"
+      - "4369:4369"
+    environment:
+      # Application Configuration
+      - PHX_HOST=notification-orchestrator
+      - PORT=4004
+      - SECRET_KEY_BASE=${SECRET_KEY_BASE:-your-super-secret-key-base-that-is-at-least-64-bytes-long-for-production}
+      - PHX_SERVER=true
+      - MIX_ENV=prod
+
+      # MongoDB Configuration
+      - MONGODB_URL=mongodb://mongodb:27017/quckapp_notifications
+      - MONGODB_URI=mongodb://mongodb:27017/quckapp_notifications
+      - MONGODB_POOL_SIZE=20
+
+      # Redis Configuration
+      - REDIS_URL=redis://redis:6379/6
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+      # Kafka Configuration
+      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_BROKER=kafka:9092
+
+      # Service URLs
+      - AUTH_SERVICE_URL=http://auth-service:8081
+
+      # Firebase Push Notification Credentials
+      - FIREBASE_CREDENTIALS=${FIREBASE_CREDENTIALS:-}
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-}
+      - FIREBASE_SERVICE_ACCOUNT=${FIREBASE_SERVICE_ACCOUNT:-}
+
+      # Apple Push Notification Service (APNs) Configuration
+      - APNS_KEY=${APNS_KEY:-}
+      - APNS_KEY_ID=${APNS_KEY_ID:-}
+      - APNS_TEAM_ID=${APNS_TEAM_ID:-}
+
+      # JWT Configuration
+      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-key}
+
+      # Clustering
+      - RELEASE_DISTRIBUTION=none
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - quckapp-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # =============================================================================
+  # MongoDB Database
+  # =============================================================================
+  mongodb:
+    image: mongo:7.0
+    container_name: notification-mongodb
+    ports:
+      - "27020:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=quckapp_notifications
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - quckapp-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # =============================================================================
+  # Redis Cache
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: notification-redis
+    ports:
+      - "6382:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - quckapp-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # =============================================================================
+  # Apache Kafka
+  # =============================================================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: notification-zookeeper
+    ports:
+      - "2184:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    networks:
+      - quckapp-network
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: notification-kafka
+    ports:
+      - "9095:9092"
+      - "29095:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - quckapp-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  quckapp-network:
+    driver: bridge
+    name: quckapp-network
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+  redis_data:
+    driver: local
+  zookeeper_data:
+    driver: local
+  zookeeper_log:
+    driver: local
+  kafka_data:
+    driver: local

@@ -10,15 +10,15 @@ defmodule NotificationOrchestrator.NotificationManager do
 
   def start_link(_opts), do: GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
 
-  def send_notification(user_id, type, title, body, opts \ []) when type in @notification_types do
+  def send_notification(user_id, type, title, body, opts \\ []) when type in @notification_types do
     GenServer.call(__MODULE__, {:send, user_id, type, title, body, opts})
   end
 
-  def send_bulk(user_ids, type, title, body, opts \ []) when type in @notification_types do
+  def send_bulk(user_ids, type, title, body, opts \\ []) when type in @notification_types do
     GenServer.call(__MODULE__, {:send_bulk, user_ids, type, title, body, opts})
   end
 
-  def get_notifications(user_id, opts \ []) do
+  def get_notifications(user_id, opts \\ []) do
     GenServer.call(__MODULE__, {:get_notifications, user_id, opts})
   end
 
@@ -138,9 +138,9 @@ defmodule NotificationOrchestrator.NotificationManager do
   defp send_to_channel(:push, notification, devices) do
     Enum.each(devices, fn device ->
       case device["platform"] do
-        "android" -> NotificationOrchestrator.Providers.Firebase.send(device["token"], notification)
-        "ios" -> NotificationOrchestrator.Providers.APNs.send(device["token"], notification)
-        "web" -> NotificationOrchestrator.Providers.Firebase.send(device["token"], notification)
+        "android" -> NotificationOrchestrator.Providers.Firebase.send_notification(device["token"], notification)
+        "ios" -> NotificationOrchestrator.Providers.APNs.send_notification(device["token"], notification)
+        "web" -> NotificationOrchestrator.Providers.Firebase.send_notification(device["token"], notification)
         _ -> :ok
       end
     end)
@@ -148,7 +148,7 @@ defmodule NotificationOrchestrator.NotificationManager do
   end
 
   defp send_to_channel(:email, notification, _devices) do
-    NotificationOrchestrator.Providers.Email.send(notification.user_id, notification)
+    NotificationOrchestrator.Providers.Email.send_notification(notification.user_id, notification)
   end
 
   defp send_to_channel(:in_app, notification, _devices) do
