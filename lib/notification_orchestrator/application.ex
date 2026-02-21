@@ -11,12 +11,16 @@ defmodule NotificationOrchestrator.Application do
         url: Application.get_env(:notification_orchestrator, :mongodb)[:url],
         pool_size: Application.get_env(:notification_orchestrator, :mongodb)[:pool_size] || 10
       ]},
-      {Redix, [
-        host: Application.get_env(:notification_orchestrator, :redis)[:host],
-        port: Application.get_env(:notification_orchestrator, :redis)[:port],
-        database: Application.get_env(:notification_orchestrator, :redis)[:database] || 6,
-        name: :notification_redis
-      ]},
+      {Redix,
+        [
+          host: Application.get_env(:notification_orchestrator, :redis)[:host],
+          port: Application.get_env(:notification_orchestrator, :redis)[:port],
+          database: Application.get_env(:notification_orchestrator, :redis)[:database] || 6,
+          name: :notification_redis
+        ] ++ if(Application.get_env(:notification_orchestrator, :redis)[:password],
+          do: [password: Application.get_env(:notification_orchestrator, :redis)[:password]],
+          else: []
+        )},
       {Finch, name: NotificationOrchestrator.Finch},
       NotificationOrchestrator.NotificationManager,
       NotificationOrchestrator.Providers.Firebase,

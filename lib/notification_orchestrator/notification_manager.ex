@@ -10,15 +10,15 @@ defmodule NotificationOrchestrator.NotificationManager do
 
   def start_link(_opts), do: GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
 
-  def send_notification(user_id, type, title, body, opts \ []) when type in @notification_types do
+  def send_notification(user_id, type, title, body, opts \\ []) when type in @notification_types do
     GenServer.call(__MODULE__, {:send, user_id, type, title, body, opts})
   end
 
-  def send_bulk(user_ids, type, title, body, opts \ []) when type in @notification_types do
+  def send_bulk(user_ids, type, title, body, opts \\ []) when type in @notification_types do
     GenServer.call(__MODULE__, {:send_bulk, user_ids, type, title, body, opts})
   end
 
-  def get_notifications(user_id, opts \ []) do
+  def get_notifications(user_id, opts \\ []) do
     GenServer.call(__MODULE__, {:get_notifications, user_id, opts})
   end
 

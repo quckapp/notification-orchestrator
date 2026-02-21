@@ -10,6 +10,16 @@ if config_env() == :prod do
     url: System.get_env("MONGODB_URI") || raise("MONGODB_URI missing"),
     pool_size: String.to_integer(System.get_env("MONGODB_POOL_SIZE") || "20")
 
+  config :notification_orchestrator, :redis,
+    host: System.get_env("REDIS_HOST") || "localhost",
+    port: String.to_integer(System.get_env("REDIS_PORT") || "6379"),
+    password: System.get_env("REDIS_PASSWORD"),
+    database: 6
+
+  config :notification_orchestrator, :kafka,
+    brokers: String.split(System.get_env("KAFKA_BROKERS") || "localhost:9092", ","),
+    consumer_group: "notification-orchestrator-group"
+
   config :notification_orchestrator, :firebase,
     project_id: System.get_env("FIREBASE_PROJECT_ID"),
     service_account: System.get_env("FIREBASE_SERVICE_ACCOUNT")
