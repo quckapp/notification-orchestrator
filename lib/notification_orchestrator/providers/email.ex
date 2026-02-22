@@ -2,9 +2,18 @@ defmodule NotificationOrchestrator.Providers.Email do
   use GenServer
   require Logger
 
+  alias NotificationOrchestrator.CircuitBreaker
+
   def start_link(_opts), do: GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
 
-  def send(user_id, notification) do
+  @doc "Send notification (extracts user_id from notification map)"
+  def send_notification(notification) when is_map(notification) do
+    user_id = notification[:user_id] || notification["user_id"]
+    send_notification(user_id, notification)
+  end
+
+  @doc "Send notification to user"
+  def send_notification(user_id, notification) do
     GenServer.cast(__MODULE__, {:send, user_id, notification})
   end
 
@@ -13,14 +22,19 @@ defmodule NotificationOrchestrator.Providers.Email do
 
   @impl true
   def handle_cast({:send, user_id, notification}, state) do
-    # Get user email from user service
-    case get_user_email(user_id) do
-      {:ok, email} ->
-        send_email(email, notification)
-        :telemetry.execute([:notification, :email, :sent], %{count: 1}, %{})
-      {:error, _} ->
-        Logger.warning("Could not get email for user #{user_id}")
-    end
+    # Wrap email operations with circuit breaker
+    CircuitBreaker.call(:email, fn ->
+      # Get user email from user service
+      case get_user_email(user_id) do
+        {:ok, email} ->
+          send_email(email, notification)
+          :telemetry.execute([:notification, :email, :sent], %{count: 1}, %{})
+          {:ok, :sent}
+        {:error, reason} = error ->
+          Logger.warning("Could not get email for user #{user_id}")
+          error
+      end
+    end, default: {:error, :circuit_open})
 
     {:noreply, state}
   end

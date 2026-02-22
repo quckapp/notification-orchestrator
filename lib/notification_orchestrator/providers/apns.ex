@@ -2,9 +2,18 @@ defmodule NotificationOrchestrator.Providers.APNs do
   use GenServer
   require Logger
 
+  alias NotificationOrchestrator.CircuitBreaker
+
   def start_link(_opts), do: GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
 
-  def send(device_token, notification) do
+  @doc "Send notification (extracts device_token from notification map)"
+  def send_notification(notification) when is_map(notification) do
+    device_token = notification[:device_token] || notification["device_token"]
+    send_notification(device_token, notification)
+  end
+
+  @doc "Send notification to device token"
+  def send_notification(device_token, notification) do
     GenServer.cast(__MODULE__, {:send, device_token, notification})
   end
 
@@ -28,9 +37,13 @@ defmodule NotificationOrchestrator.Providers.APNs do
       data: notification.data
     }
 
-    # In production, use Pigeon or similar library for APNs
-    Logger.info("APNs notification would be sent to #{device_token}")
-    :telemetry.execute([:notification, :apns, :sent], %{count: 1}, %{})
+    # Wrap APNs call with circuit breaker
+    CircuitBreaker.call(:apns, fn ->
+      # In production, use Pigeon or similar library for APNs
+      Logger.info("APNs notification would be sent to #{device_token}")
+      :telemetry.execute([:notification, :apns, :sent], %{count: 1}, %{})
+      {:ok, :sent}
+    end, default: {:error, :circuit_open})
 
     {:noreply, state}
   end

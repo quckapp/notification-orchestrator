@@ -3,6 +3,9 @@ defmodule NotificationOrchestrator.Application do
 
   @impl true
   def start(_type, _args) do
+    # Initialize circuit breakers
+    NotificationOrchestrator.CircuitBreaker.init()
+
     children = [
       NotificationOrchestrator.Telemetry,
       {Phoenix.PubSub, name: NotificationOrchestrator.PubSub},
@@ -22,10 +25,13 @@ defmodule NotificationOrchestrator.Application do
           else: []
         )},
       {Finch, name: NotificationOrchestrator.Finch},
+      # Hash ring for consistent distribution
+      NotificationOrchestrator.Distribution,
       NotificationOrchestrator.NotificationManager,
       NotificationOrchestrator.Providers.Firebase,
       NotificationOrchestrator.Providers.APNs,
       NotificationOrchestrator.Providers.Email,
+      NotificationOrchestrator.Kafka.Producer,
       NotificationOrchestrator.Kafka.Consumer,
       {Cluster.Supervisor, [Application.get_env(:libcluster, :topologies), [name: NotificationOrchestrator.ClusterSupervisor]]},
       NotificationOrchestrator.Endpoint

@@ -1,5 +1,22 @@
 defmodule NotificationOrchestrator.DeviceController do
   use Phoenix.Controller, formats: [:json]
+  use OpenApiSpex.ControllerSpecs
+
+  alias NotificationOrchestrator.Schemas.Device
+  alias NotificationOrchestrator.Schemas.Common
+
+  tags ["Devices"]
+  security [%{"bearer_auth" => []}]
+
+  operation :register,
+    summary: "Register device",
+    description: "Register a device for push notifications. The device token is used to send push notifications to the device.",
+    request_body: {"Device registration details", "application/json", Device.RegisterDeviceRequest},
+    responses: [
+      ok: {"Device registered successfully", "application/json", Device.RegisterDeviceResponse},
+      bad_request: {"Invalid request", "application/json", Common.ErrorResponse},
+      unauthorized: {"Unauthorized", "application/json", Common.ErrorResponse}
+    ]
 
   def register(conn, %{"token" => token, "platform" => platform} = params) do
     user_id = conn.assigns[:current_user_id]
@@ -21,6 +38,24 @@ defmodule NotificationOrchestrator.DeviceController do
 
     json(conn, %{success: true, data: %{device_id: device_id}})
   end
+
+  operation :unregister,
+    summary: "Unregister device",
+    description: "Unregister a device from push notifications. The device will no longer receive push notifications.",
+    parameters: [
+      device_id: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The unique identifier of the device to unregister",
+        example: "550e8400-e29b-41d4-a716-446655440000"
+      ]
+    ],
+    responses: [
+      ok: {"Device unregistered successfully", "application/json", Common.SuccessResponse},
+      not_found: {"Device not found", "application/json", Common.ErrorResponse},
+      unauthorized: {"Unauthorized", "application/json", Common.ErrorResponse}
+    ]
 
   def unregister(conn, %{"device_id" => device_id}) do
     user_id = conn.assigns[:current_user_id]

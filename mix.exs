@@ -1,13 +1,15 @@
 defmodule NotificationOrchestrator.MixProject do
   use Mix.Project
 
+  @production_envs [:prod, :production, :staging, :live, :qa, :uat1, :uat2, :uat3]
+
   def project do
     [
       app: :notification_orchestrator,
       version: "1.0.0",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
-      start_permanent: Mix.env() == :prod,
+      start_permanent: Mix.env() in @production_envs,
       deps: deps(),
       releases: [notification_orchestrator: [include_executables_for: [:unix], applications: [runtime_tools: :permanent]]]
     ]
@@ -28,6 +30,7 @@ defmodule NotificationOrchestrator.MixProject do
       {:jason, "~> 1.4"},
       {:cors_plug, "~> 3.0"},
       {:mongodb_driver, "~> 1.4"},
+      {:castore, "~> 1.0"},
       {:redix, "~> 1.3"},
       {:brod, "~> 3.16"},
       {:guardian, "~> 2.3"},
@@ -41,7 +44,15 @@ defmodule NotificationOrchestrator.MixProject do
       {:uuid, "~> 1.1"},
       {:pigeon, "~> 2.0"},
       {:kadabra, "~> 0.6"},
-      {:oban, "~> 2.17"}
+      {:oban, "~> 2.17"},
+      {:open_api_spex, "~> 3.18"},
+      {:logster, "~> 1.1"},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false},
+
+      # Algorithm libraries
+      {:fuse, "~> 2.5"},
+      {:ex_hash_ring, "~> 7.0"}
     ]
   end
 end

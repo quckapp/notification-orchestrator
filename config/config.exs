@@ -17,7 +17,8 @@ config :notification_orchestrator, :redis,
   database: 6
 
 config :notification_orchestrator, :kafka,
-  brokers: [System.get_env("KAFKA_BROKER") || "localhost:9092"],
+  enabled: false,
+  brokers: [{~c"localhost", 9092}],
   consumer_group: "notification-orchestrator-group"
 
 config :notification_orchestrator, NotificationOrchestrator.Guardian,
@@ -37,4 +38,8 @@ config :libcluster, topologies: [notification_cluster: [strategy: Cluster.Strate
 config :logger, :console, format: "$time $metadata[$level] $message\n", metadata: [:request_id]
 config :phoenix, :json_library, Jason
 
-import_config "#{config_env()}.exs"
+# Import environment-specific config
+# Environments: dev, test, local, qa, uat1, uat2, uat3, staging, production, live, prod
+if File.exists?("config/#{config_env()}.exs") do
+  import_config "#{config_env()}.exs"
+end
